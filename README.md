@@ -1,5 +1,7 @@
 # Agent Framework Comparison for Literature Review Generation
 
+> **Related Project**: This experimental framework was designed to evaluate the AgentGit framework for academic research. AgentGit project: [[Agent-Git](https://github.com/KataDavidXD/Agent-Git.git)]
+
 ## Experimental Overview
 
 This repository implements a comprehensive empirical study comparing four different AI agent frameworks for automated literature review generation. The experiment evaluates how different agent architectures affect the quality of generated academic summaries using standardized evaluation metrics.
