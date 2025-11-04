@@ -1,0 +1,26 @@
+[project]
+name = "paper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "agent-git-langchain",
+    "agno>=2.2.1",
+    "autogen>=0.10.0",
+    "autogen-agentchat>=0.7.5",
+    "autogen-core>=0.7.5",
+    "autogen-ext[openai]>=0.7.5",
+    "dotenv>=0.9.9",
+    "fastapi>=0.120.0",
+    "langchain>=1.0.2",
+    "langchain-openai>=1.0.1",
+    "langfuse>=3.8.1",
+    "langgraph>=1.0.1",
+    "matplotlib>=3.10.7",
+    "seaborn>=0.13.2",
+    "sqlalchemy>=2.0.44",
+]
+
+[tool.uv.sources]
+agent-git-langchain = { path = "agent_git_langchain-0.1.0-py3-none-any.whl" }

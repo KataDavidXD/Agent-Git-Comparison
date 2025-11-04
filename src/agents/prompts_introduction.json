@@ -1,0 +1,14 @@
+[
+  {
+    "id": "introduction_cot_amplified",
+    "style": "cot",
+    "system": "You are writing the Introduction section for a literature review.\n\nIMPORTANT: You MUST show your step-by-step reasoning explicitly.\n\nStep 1: ANALYZE WHY this topic matters\n→ Think: What problem does this solve? Write your reasoning.\n\nStep 2: IDENTIFY current research state  \n→ Think: What has been done? Write your analysis.\n\nStep 3: FIND research gaps\n→ Think: What's missing? Write your identification process.\n\nStep 4: DEFINE review objective\n→ Think: What will we synthesize? Write your definition.\n\nStep 5: STRUCTURE the organization\n→ Think: How to organize? Write your structure plan.\n\nFor EACH step, write \"Reasoning:\" followed by your thought process, THEN write the actual content.\nMake your logical connections EXPLICIT using \"therefore\", \"because\", \"this leads to\".",
+    "user": "Write the Introduction section (200-300 words) based on these papers. SHOW YOUR REASONING for each step:\n\n{abstracts_text}"
+  },
+  {
+    "id": "introduction_fewshot_amplified",
+    "style": "few_shot",
+    "system": "Write an Introduction following these examples EXACTLY:\n\nExample 1:\n\"Quantum computing represents a paradigm shift in computational capability, promising to solve problems intractable for classical systems. Recent research has advanced error correction codes, quantum algorithms, and hardware implementations. This review examines 25 foundational papers, organizing findings into three domains: theoretical frameworks, algorithmic innovations, and practical applications in cryptography and optimization.\"\n\nExample 2:\n\"Autonomous vehicles have emerged as a transformative technology at the intersection of artificial intelligence and transportation. Current work addresses perception systems, decision-making algorithms, and safety validation. This review synthesizes 30 key studies, structuring analysis around sensor fusion techniques, planning architectures, and real-world deployment challenges.\"\n\nExample 3:\n\"Federated learning enables privacy-preserving machine learning across distributed devices without centralizing data. Recent advances focus on communication efficiency, model aggregation, and differential privacy. This review analyzes 20 seminal works, categorizing contributions into three themes: optimization methods, privacy mechanisms, and application scenarios in healthcare and finance.\"\n\nMatch this style EXACTLY.",
+    "user": "Write the Introduction (200-300 words):\n\n{abstracts_text}"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "discussion_cot_amplified",
+    "style": "cot",
+    "system": "You are writing the Critical Discussion section.\n\nMANDATORY: Build an EXPLICIT argument chain showing ALL reasoning.\n\nStep 1: EVALUATE contributions\n→ Reasoning: \"Paper X contributes Y. This matters because...\"\n\nStep 2: IDENTIFY limitations  \n→ Reasoning: \"However, gap G exists. I conclude this because...\"\n\nStep 3: ANALYZE implications\n→ Reasoning: \"This limitation means Z. The logical connection is...\"\n\nStep 4: PROPOSE directions\n→ Reasoning: \"Therefore, future work should W. This follows because...\"\n\nStep 5: JUSTIFY importance\n→ Reasoning: \"Direction W addresses gap G because...\"\n\nMake EVERY logical leap explicit. Use: \"Given that...\", \"It follows that...\", \"This reasoning leads to...\", \"The implication is...\".",
+    "user": "Write the Critical Discussion (300-400 words). SHOW YOUR COMPLETE ARGUMENT CHAIN:\n\n{abstracts_text}\n\nPrevious:\n{introduction}\n{analysis}"
+  },
+  {
+    "id": "discussion_fewshot_amplified",
+    "style": "few_shot",
+    "system": "Write a Critical Discussion matching these examples:\n\nExample 1:\n\"While transformer architectures achieve state-of-the-art results, three critical limitations persist. First, quadratic attention complexity prohibits processing long sequences, restricting applications in genomics and legal document analysis. Second, positional encodings fail to capture hierarchical structure, limiting performance on structured data. Third, interpretability remains elusive, hindering deployment in high-stakes domains like healthcare. Future research should pursue: (1) linear-complexity attention mechanisms enabling longer contexts, (2) hierarchical position representations respecting document structure, and (3) attention-based explanability frameworks providing human-interpretable rationales for predictions.\"\n\nExample 2:\n\"Despite remarkable progress in multimodal learning, fundamental challenges remain. Current methods require massive paired datasets, creating data bottlenecks for low-resource domains. Models exhibit brittle cross-modal alignment, failing when distributions shift between modalities. Computational demands restrict real-time applications. Research priorities include: (1) self-supervised techniques reducing supervision requirements, (2) robust alignment objectives maintaining performance under distribution shifts, and (3) efficient architectures enabling edge deployment through model compression and distillation.\"\n\nMatch this structure: acknowledge progress → identify 3 specific gaps → propose targeted solutions.",
+    "user": "Write the Critical Discussion (300-400 words):\n\n{abstracts_text}\n\nPrevious:\n{introduction}\n{analysis}"
+  }
+]

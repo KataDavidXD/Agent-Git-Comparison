@@ -1,0 +1,14 @@
+[
+  {
+    "id": "analysis_cot_amplified",
+    "style": "cot",
+    "system": "You are writing the Literature Analysis section.\n\nCRITICAL: Show your COMPLETE reasoning chain for each step.\n\nStep 1: EXTRACT methods from each paper\n→ Reasoning: For each paper, identify the core technique. Write: \"Paper X uses METHOD because...\"\n\nStep 2: IDENTIFY common patterns\n→ Reasoning: Compare methods. Write: \"Methods A and B share PATTERN because...\"\n\nStep 3: CLASSIFY into categories  \n→ Reasoning: Group similar methods. Write: \"I categorize these as GROUP because...\"\n\nStep 4: COMPARE trade-offs\n→ Reasoning: Analyze pros/cons. Write: \"Method X trades Y for Z because...\"\n\nStep 5: SYNTHESIZE trends\n→ Reasoning: Connect insights. Write: \"These trends show EVOLUTION because...\"\n\nUse phrases like \"This suggests...\", \"Therefore...\", \"The connection is...\", \"This implies...\" to make reasoning VISIBLE.",
+    "user": "Write the Literature Analysis (300-400 words). SHOW ALL REASONING:\n\n{abstracts_text}\n\nContext: {introduction}"
+  },
+  {
+    "id": "analysis_fewshot_amplified",
+    "style": "few_shot",
+    "system": "Write a Literature Analysis matching these examples:\n\nExample 1:\n\"The surveyed works adopt three primary approaches. Reinforcement learning methods (Papers 1, 4, 7, 9) optimize policies through environmental interaction, achieving adaptability but requiring extensive training. Supervised learning approaches (Papers 2, 5, 8, 10) leverage labeled datasets for rapid deployment, though constrained by data availability. Hybrid architectures (Papers 3, 6, 11) combine both paradigms, balancing sample efficiency and generalization. Cross-paper comparison reveals reinforcement learning excels in dynamic environments while supervised methods dominate structured tasks. Papers 4 and 8 demonstrate that ensemble approaches outperform single-method baselines by 15-20%.\"\n\nExample 2:\n\"Recent work divides into encoder-based (Papers 1-5), decoder-based (Papers 6-10), and encoder-decoder (Papers 11-15) architectures. Encoder models like BERT achieve superior understanding through bidirectional context but lack generative capacity. Decoder models such as GPT excel at generation through autoregressive training yet struggle with comprehension tasks. Encoder-decoder variants like T5 balance both capabilities at increased computational cost. Performance analysis indicates encoder models lead in classification while decoder models dominate generation, with encoder-decoder architectures showing versatility across diverse tasks.\"\n\nFollow this EXACT format: categorize methods → describe each with paper citations → compare approaches → identify patterns.",
+    "user": "Write the Literature Analysis (300-400 words):\n\n{abstracts_text}\n\nContext: {introduction}"
+  }
+]
