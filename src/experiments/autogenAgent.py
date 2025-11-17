@@ -484,7 +484,7 @@ async def run_all_experiments(topic: str, run_id: str = None):
     # Running config
     project_start_time = time.time()
     if run_id is None:
-        run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + "_" + str(uuid.uuid4())[:8]
+        run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + "_" + str(uuid.uuid4())
     
     
     prompt_intro_candidates = load_prompts("prompts_introduction.json")
@@ -568,7 +568,7 @@ async def run_all_experiments(topic: str, run_id: str = None):
 
     # Save results
     topic_clean = topic.replace(' ', '_').lower()
-    results_base = Path(__file__).parent.parent.parent.parent / "results"
+    results_base = Path(__file__).parent.parent.parent / "results"
     run_dir = results_base / f"{topic_clean}" / "autogen"
     raw_dir = run_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)

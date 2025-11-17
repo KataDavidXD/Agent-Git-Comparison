@@ -13,11 +13,26 @@ load_dotenv(override=True)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.joinpath('src')))
 
-from agents.agentgitAgent_sections import SectionBasedSummarizer
-from agents.agnoAgent import run_all_experiments as run_agno_experiments
-from agents.autogenAgent import run_all_experiments as run_autogen_experiments
-from agents.langgraph_time_travel_agent import TimeTravelSummarizer
-from agents.evaluator import BranchEvaluator, FrameworkComparator, ResultsAnalyzer
+from experiments.evaluator import BranchEvaluator, FrameworkComparator, ResultsAnalyzer
+
+global EXPERIMENT_NUM
+
+def import_experiment_modules():
+    if EXPERIMENT_NUM == 1:
+        from experiments.agentgitAgent_sections import SectionBasedSummarizer
+        from experiments.agnoAgent import run_all_experiments as run_agno_experiments
+        from experiments.autogenAgent import run_all_experiments as run_autogen_experiments
+        from experiments.langgraph_time_travel_agent import TimeTravelSummarizer
+        return SectionBasedSummarizer, TimeTravelSummarizer, run_autogen_experiments, run_agno_experiments
+    elif EXPERIMENT_NUM == 2:
+        from experiments.agentgitAgent_exp2 import SectionBasedSummarizer
+        from experiments.langgraph_exp2 import TimeTravelSummarizer
+        from experiments.autogenAgent_exp2 import run_all_experiments as run_autogen_experiments
+        from experiments.agnoAgent_exp2 import run_all_experiments as run_agno_experiments
+        return SectionBasedSummarizer, TimeTravelSummarizer, run_autogen_experiments, run_agno_experiments
+    else:
+        raise ValueError(f"Unsupported experiment number: {EXPERIMENT_NUM}")
+
 
 evaluator = BranchEvaluator(model='gpt-4o-mini', num_samples=10)
 
@@ -102,7 +117,7 @@ def run_experiments_in_parallel(experiment_func, max_workers=10, nums=20):
                 results.append(f"Error: {str(e)}")
     return results
 
-def compute_average_stats(results):
+def compute_average_stats(results, experiment_num=1):
     output_files = results
     result_data = deepcopy(RESULT_TEMPLATE)
     
@@ -158,6 +173,9 @@ def compute_average_stats(results):
                 branch_stats[branch_id]["prompt_analysis_style"] = branch_eval.get("prompt_analysis_style", "")
                 branch_stats[branch_id]["prompt_discussion"] = branch_eval.get("prompt_discussion", "")
                 branch_stats[branch_id]["prompt_discussion_style"] = branch_eval.get("prompt_discussion_style", "")
+                if EXPERIMENT_NUM == 2:
+                    branch_stats[branch_id]["prompt_limitations"] = branch_eval.get("prompt_limitations", "")
+                    branch_stats[branch_id]["prompt_limitations_style"] = branch_eval.get("prompt_limitations_style", "")
             branch_stats[branch_id]["scores"]["fluency"] += branch_eval["scores"]["fluency"]
             branch_stats[branch_id]["scores"]["coherence"] += branch_eval["scores"]["coherence"]
             branch_stats[branch_id]["scores"]["consistency"] += branch_eval["scores"]["consistency"]
@@ -192,7 +210,7 @@ def compute_average_stats(results):
         stats["metadata"]["branch_token_usage"]["completion_tokens"] /= len(output_files)
         stats["metadata"]["branch_token_usage"]["total_tokens"] /= len(output_files)
 
-        result_data["branch_evaluations"].append({
+        tmp_result = {
             "branch_id": branch_id,
             "scores": stats["scores"],
             "overall_score": np.mean(stats["overall_score"]),
@@ -209,7 +227,11 @@ def compute_average_stats(results):
             "prompt_analysis_style": stats.get("prompt_analysis_style", ""),
             "prompt_discussion": stats.get("prompt_discussion", ""),
             "prompt_discussion_style": stats.get("prompt_discussion_style", "")
-        })
+        }
+        if EXPERIMENT_NUM == 2:
+            tmp_result["prompt_limitations"] = stats.get("prompt_limitations", "")
+            tmp_result["prompt_limitations_style"] = stats.get("prompt_limitations_style", "")
+        result_data["branch_evaluations"].append(tmp_result)
         
     result_data["summary_statistics"] = {
         "fluency": {
@@ -256,63 +278,65 @@ def run_sync_frameworks(topic:str, output_dir: Path):
     RESULT_TEMPLATE["topic"] = topic
     
     print("Running AgentGit experiments...")
-    agentgit_results_files = run_experiments_in_parallel(partial(run_and_eval_agentgit_experiment, topic), nums=20)
-    base = '/Users/ethan/Downloads/Paper/results/large_language_models/sections/eval'
-    agentgit_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
-    agentgit_eval_data = compute_average_stats(agentgit_results_files)
-    with open(output_dir.joinpath('agentgit_evaluation_summary.json'), 'w') as f:
-        json.dump(agentgit_eval_data, f, indent=4)
+    # agentgit_results_files = run_experiments_in_parallel(partial(run_and_eval_agentgit_experiment, topic), nums=20)
+    # base = str(output_dir.joinpath('sections', 'eval'))
+    # agentgit_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
+    # agentgit_eval_data = compute_average_stats(agentgit_results_files)
+    # with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agentgit_evaluation_summary.json'), 'w') as f:
+    #     json.dump(agentgit_eval_data, f, indent=4)
         
     print("Running LangGraph Time Travel experiments...")
     langgraph_results_files = run_experiments_in_parallel(partial(run_and_eval_langgraph_experiments, topic), nums=20)
-    base = '/Users/ethan/Downloads/Paper/results/large_language_models/timetravel/eval'
+    base = str(output_dir.joinpath('timetravel', 'eval'))
     langgraph_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
     langgraph_eval_data = compute_average_stats(langgraph_results_files)
-    with open(output_dir.joinpath('langgraph_time_travel_evaluation_summary.json'), 'w') as f:
+    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'langgraph_time_travel_evaluation_summary.json'), 'w') as f:
         json.dump(langgraph_eval_data, f, indent=4)
         
     print("Running Agno experiments...")
-    agno_results_files = run_experiments_in_parallel(partial(run_and_eval_agno_experiments, topic), nums=20)
-    base = '/Users/ethan/Downloads/Paper/results/large_language_models/agno/eval'
-    agno_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
-    agno_eval_data = compute_average_stats(agno_results_files)
-    with open(output_dir.joinpath('agno_evaluation_summary.json'), 'w') as f:
-        json.dump(agno_eval_data, f, indent=4)
+    # agno_results_files = run_experiments_in_parallel(partial(run_and_eval_agno_experiments, topic), nums=20)
+    # base = str(output_dir.joinpath('agno', 'eval'))
+    # agno_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
+    # agno_eval_data = compute_average_stats(agno_results_files)
+    # with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agno_evaluation_summary.json'), 'w') as f:
+    #     json.dump(agno_eval_data, f, indent=4)
         
     return {
-        "agentgit": str(output_dir.joinpath('agentgit_evaluation_summary.json')),
-        "langgraph (time_travel)": str(output_dir.joinpath('langgraph_time_travel_evaluation_summary.json')),
-        "agno": str(output_dir.joinpath('agno_evaluation_summary.json'))
+        "agentgit": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agentgit_evaluation_summary.json')),
+        "langgraph (time_travel)": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'langgraph_time_travel_evaluation_summary.json')),
+        "agno": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agno_evaluation_summary.json'))
     }
     
 async def run_async_frameworks(topic:str, output_dir: Path):
     print("Running AutoGen experiments...")
-    autogen_results_files = await asyncio.gather(*[asyncio.create_task(run_and_eval_autogen_experiments(topic)) for _ in range(20)])
-    base = '/Users/ethan/Downloads/Paper/results/large_language_models/autogen/eval'
+    # autogen_results_files = await asyncio.gather(*[asyncio.create_task(run_and_eval_autogen_experiments(topic)) for _ in range(20)])
+    base = str(output_dir.joinpath('autogen', 'eval'))
     autogen_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
     autogen_eval_data = compute_average_stats(autogen_results_files)
-    with open(output_dir.joinpath('autogen_evaluation_summary.json'), 'w') as f:
+    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'autogen_evaluation_summary.json'), 'w') as f:
         json.dump(autogen_eval_data, f, indent=4)
     return {
-        "autogen": str(output_dir.joinpath('autogen_evaluation_summary.json')),
+        "autogen": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'autogen_evaluation_summary.json')),
     }
 
 if __name__ == "__main__":
     topic = "large language models"
-    output_dir = Path(__file__).parent.parent.joinpath('results', f'{topic.replace(' ', '_').lower()}', 'framework_experiments')
+    EXPERIMENT_NUM = 2
+    output_dir = Path(__file__).parent.parent.joinpath('results', f'{topic.replace(" ", "_").lower()}')
     output_dir.mkdir(parents=True, exist_ok=True)
+    SectionBasedSummarizer, TimeTravelSummarizer, run_autogen_experiments, run_agno_experiments = import_experiment_modules()
     sync_framework_files = run_sync_frameworks(topic, output_dir)
-    async_framework_files = asyncio.run(run_async_frameworks(topic, output_dir))
-    framework_files = {**sync_framework_files, **async_framework_files}
+    # async_framework_files = asyncio.run(run_async_frameworks(topic, output_dir))
+    # framework_files = {**sync_framework_files, **async_framework_files}
     
-    framework_files = {
-        'agent_git': str(output_dir.joinpath('agentgit_evaluation_summary.json')),
-        'langgraph (time_travel)': str(output_dir.joinpath('langgraph_time_travel_evaluation_summary.json')),
-        'autogen': str(output_dir.joinpath('autogen_evaluation_summary.json')),
-        'agno': str(output_dir.joinpath('agno_evaluation_summary.json'))
-    }
-    comparator = FrameworkComparator(framework_files)
-    comparator.compare_all()
+    # framework_files = {
+    #     'agent_git': str(output_dir.joinpath("framework_experiments", 'agentgit_evaluation_summary.json')),
+    #     'langgraph (time_travel)': str(output_dir.joinpath("framework_experiments", 'langgraph_time_travel_evaluation_summary.json')),
+    #     'autogen': str(output_dir.joinpath("framework_experiments", 'autogen_evaluation_summary.json')),
+    #     'agno': str(output_dir.joinpath("framework_experiments", 'agno_evaluation_summary.json'))
+    # }
+    # comparator = FrameworkComparator(framework_files)
+    # comparator.compare_all()
     
     # analyzer = ResultsAnalyzer(str(str(output_dir.joinpath('agentgit_evaluation_summary.json'))))
     # analyzer.create_all_visualizations()

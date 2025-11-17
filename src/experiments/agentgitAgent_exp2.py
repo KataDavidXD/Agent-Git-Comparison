@@ -369,7 +369,7 @@ def node_concatenate(state: SectionBasedState) -> Dict[str, Any]:
 class SectionBasedSummarizer:
     """Section-based paper summarization with checkpoint branching."""
 
-    def __init__(self, db_path: str = "./tmp/agentgit.db"):
+    def __init__(self, db_path: str = project_root / "tmp" / "agentgit.db"):
         self.db_path = db_path
 
         # Initialize repositories
@@ -404,7 +404,7 @@ class SectionBasedSummarizer:
         6. Return ALL results with metrics
         """
         if run_id is None:
-            run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + "_" + str(uuid.uuid4())[:8]
+            run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + "_" + str(uuid.uuid4())
         
         project_start_time = time.time()
         
@@ -765,7 +765,7 @@ class SectionBasedSummarizer:
 
         # Save results
         topic_clean = topic.replace(' ', '_').lower()
-        results_base = Path(__file__).parent.parent.parent.parent / "results"
+        results_base = Path(__file__).parent.parent.parent / "results"
         run_dir = results_base / f"{topic_clean}" / "sections"
         raw_dir = run_dir / "raw"
         raw_dir.mkdir(parents=True, exist_ok=True)

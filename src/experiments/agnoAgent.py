@@ -1,5 +1,6 @@
 import itertools
 import os
+import sys
 import time
 import json
 import uuid
@@ -10,6 +11,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TypedDict, Annotated, List, Dict, Any
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from langchain_openai import ChatOpenAI
 
@@ -380,7 +385,7 @@ def run_workflow(initial_state: AgentState, workflow_config: Dict[str, Any]) -> 
     session_id = workflow_config.get("session_id", "default_session")
     db = SqliteDb(
             session_table="workflow_session",
-            db_file="tmp/workflow.db",
+            db_file=str(project_root / "tmp" / "workflow.db"),
         )
     db.delete_session(session_id)
 
@@ -409,7 +414,7 @@ def run_all_experiments(topic: str, run_id: str = None):
     # Running config
     project_start_time = time.time()
     if run_id is None:
-        run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + "_" + str(uuid.uuid4())[:8]
+        run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + "_" + str(uuid.uuid4())
     
     
     prompt_intro_candidates = load_prompts("prompts_introduction.json")
@@ -496,7 +501,7 @@ def run_all_experiments(topic: str, run_id: str = None):
 
     # Save results
     topic_clean = topic.replace(' ', '_').lower()
-    results_base = Path(__file__).parent.parent.parent.parent / "results"
+    results_base = Path(__file__).parent.parent.parent / "results"
     run_dir = results_base / f"{topic_clean}" / "agno"
     raw_dir = run_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
