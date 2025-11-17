@@ -212,7 +212,7 @@ def node_generate_introduction(state: SectionBasedState) -> Dict[str, Any]:
     """Node 3: Generate Introduction section using selected prompt."""
     start_time = time.time()
     prompt_intro = state["prompt_introduction"]
-    print(f"[STEP] Generating Introduction with prompt {prompt_intro["id"]}")
+    print(f"[STEP] Generating Introduction with prompt {prompt_intro['id']}")
     
     abstracts = state.get("abstracts", [])
     topic = state.get("topic", "Unknown")
@@ -440,6 +440,7 @@ def node_concatenate(state: SectionBasedState) -> Dict[str, Any]:
     introduction = state.get("introduction", "")
     analysis = state.get("analysis", "")
     discussion = state.get("discussion", "")
+    limitations = state.get("limitations", "")
     
     # Simple concatenation with section headers
     final_review = f"""# Literature Review: {topic}
@@ -455,6 +456,10 @@ def node_concatenate(state: SectionBasedState) -> Dict[str, Any]:
 ## 3. Critical Discussion
 
 {discussion}
+
+## 4. Limitations
+
+{limitations}
 
 ---
 *This review synthesizes findings from {len(state.get('abstracts', []))} recent papers.*
@@ -748,7 +753,7 @@ class TimeTravelSummarizer:
                         if final_state:
                             
                             result = {
-                                "branch_id": f"I{intro_idx}_A{analysis_idx}_D{discussion_idx}",
+                                "branch_id": f"I{intro_idx}_A{analysis_idx}_D{discussion_idx}_L{limitations_idx}",
                                 "prompt_intro": final_state["prompt_introduction"]["id"],
                                 "prompt_intro_style": final_state["prompt_introduction"]["style"],
                                 "prompt_analysis": final_state["prompt_analysis"]["id"],
@@ -772,6 +777,7 @@ class TimeTravelSummarizer:
                                         "introduction_time": final_state["experiment_result"]["introduction_time"],
                                         "analysis_time": final_state["experiment_result"]["analysis_time"],
                                         "discussion_time": final_state["experiment_result"]["discussion_time"],
+                                        "limitations_time": final_state["experiment_result"]["limitations_time"],
                                         "introduction_tokens": final_state["experiment_result"]["introduction_tokens"],
                                         "analysis_tokens": final_state["experiment_result"]["analysis_tokens"],
                                         "discussion_tokens": final_state["experiment_result"]["discussion_tokens"],

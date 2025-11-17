@@ -77,7 +77,7 @@ class SectionBasedState(TypedDict):
 
 def load_prompts(prompt_file: str) -> List[Dict[str, Any]]:
     """Load prompt candidates from JSON file."""
-    prompt_path = Path(__file__).parent / prompt_file
+    prompt_path = Path(__file__).parent.parent / "prompts" / prompt_file
     with open(prompt_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 

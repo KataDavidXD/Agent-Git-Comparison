@@ -15,23 +15,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.joinpath('src')))
 
 from experiments.evaluator import BranchEvaluator, FrameworkComparator, ResultsAnalyzer
 
-global EXPERIMENT_NUM
+global EXPERIMENT_NUMER
 
 def import_experiment_modules():
-    if EXPERIMENT_NUM == 1:
+    if EXPERIMENT_NUMER == 1:
         from experiments.agentgitAgent_sections import SectionBasedSummarizer
         from experiments.agnoAgent import run_all_experiments as run_agno_experiments
         from experiments.autogenAgent import run_all_experiments as run_autogen_experiments
         from experiments.langgraph_time_travel_agent import TimeTravelSummarizer
         return SectionBasedSummarizer, TimeTravelSummarizer, run_autogen_experiments, run_agno_experiments
-    elif EXPERIMENT_NUM == 2:
+    elif EXPERIMENT_NUMER == 2:
         from experiments.agentgitAgent_exp2 import SectionBasedSummarizer
         from experiments.langgraph_exp2 import TimeTravelSummarizer
         from experiments.autogenAgent_exp2 import run_all_experiments as run_autogen_experiments
         from experiments.agnoAgent_exp2 import run_all_experiments as run_agno_experiments
         return SectionBasedSummarizer, TimeTravelSummarizer, run_autogen_experiments, run_agno_experiments
     else:
-        raise ValueError(f"Unsupported experiment number: {EXPERIMENT_NUM}")
+        raise ValueError(f"Unsupported experiment number: {EXPERIMENT_NUMER}")
 
 
 evaluator = BranchEvaluator(model='gpt-4o-mini', num_samples=10)
@@ -117,7 +117,21 @@ def run_experiments_in_parallel(experiment_func, max_workers=10, nums=20):
                 results.append(f"Error: {str(e)}")
     return results
 
-def compute_average_stats(results, experiment_num=1):
+def add_token_usage(dict1, dict2):
+    dict1["prompt_tokens"] += dict2.get("prompt_tokens", 0)
+    dict1["completion_tokens"] += dict2.get("completion_tokens", 0)
+    dict1["total_tokens"] += dict2.get("total_tokens", 0)
+
+def scale_dict_value(dc, scale, recursive=True):
+    for key, val in dc.items():
+        if recursive and isinstance(val, dict):
+            scale_dict_value(val, scale, recursive=True)
+            continue
+        if not isinstance(val, float) and not isinstance(val, int):
+            continue
+        dc[key] = val * scale
+
+def compute_average_stats(results, EXPERIMENT_NUMER=1):
     output_files = results
     result_data = deepcopy(RESULT_TEMPLATE)
     
@@ -143,9 +157,7 @@ def compute_average_stats(results, experiment_num=1):
             
         all_project_time += content["timing"]["total_project_time"]
         
-        token_usage_overall["prompt_tokens"] += content.get("token_usage_overall", {}).get("prompt_tokens", 0)
-        token_usage_overall["completion_tokens"] += content.get("token_usage_overall", {}).get("completion_tokens", 0)
-        token_usage_overall["total_tokens"] += content.get("token_usage_overall", {}).get("total_tokens", 0)
+        add_token_usage(token_usage_overall, content.get("token_usage_overall", {}))
         
         for branch_eval in content.get("branch_evaluations", []):
             branch_id = branch_eval["branch_id"]
@@ -164,6 +176,32 @@ def compute_average_stats(results, experiment_num=1):
                             "prompt_tokens": 0,
                             "completion_tokens": 0,
                             "total_tokens": 0
+                        },
+                        "breakdown": {
+                            "introduction_time": 0,
+                            "analysis_time": 0,
+                            "discussion_time": 0,
+                            "limitations_time": 0,
+                            "introduction_tokens": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            },
+                            "analysis_tokens": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            },
+                            "discussion_tokens": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            },
+                            "limitations_tokens": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            }
                         }
                     }
                 }
@@ -172,19 +210,23 @@ def compute_average_stats(results, experiment_num=1):
                 branch_stats[branch_id]["prompt_analysis"] = branch_eval.get("prompt_analysis", "")
                 branch_stats[branch_id]["prompt_analysis_style"] = branch_eval.get("prompt_analysis_style", "")
                 branch_stats[branch_id]["prompt_discussion"] = branch_eval.get("prompt_discussion", "")
-                branch_stats[branch_id]["prompt_discussion_style"] = branch_eval.get("prompt_discussion_style", "")
-                if EXPERIMENT_NUM == 2:
-                    branch_stats[branch_id]["prompt_limitations"] = branch_eval.get("prompt_limitations", "")
-                    branch_stats[branch_id]["prompt_limitations_style"] = branch_eval.get("prompt_limitations_style", "")
+                branch_stats[branch_id]["prompt_limitations"] = branch_eval.get("prompt_limitations", "")
+                branch_stats[branch_id]["prompt_limitations_style"] = branch_eval.get("prompt_limitations_style", "")
             branch_stats[branch_id]["scores"]["fluency"] += branch_eval["scores"]["fluency"]
             branch_stats[branch_id]["scores"]["coherence"] += branch_eval["scores"]["coherence"]
             branch_stats[branch_id]["scores"]["consistency"] += branch_eval["scores"]["consistency"]
             branch_stats[branch_id]["scores"]["relevance"] += branch_eval["scores"]["relevance"]
             branch_stats[branch_id]["overall_score"].append(branch_eval["overall_score"])
             branch_stats[branch_id]["metadata"]["branch_execution_time"] += branch_eval.get("metadata", {}).get("branch_execution_time", 0)
-            branch_stats[branch_id]["metadata"]["branch_token_usage"]["prompt_tokens"] += branch_eval.get("metadata", {}).get("branch_token_usage", {}).get("prompt_tokens", 0)
-            branch_stats[branch_id]["metadata"]["branch_token_usage"]["completion_tokens"] += branch_eval.get("metadata", {}).get("branch_token_usage", {}).get("completion_tokens", 0)
-            branch_stats[branch_id]["metadata"]["branch_token_usage"]["total_tokens"] += branch_eval.get("metadata", {}).get("branch_token_usage", {}).get("total_tokens", 0)
+            add_token_usage(branch_stats[branch_id]["metadata"]["branch_token_usage"], branch_eval.get("metadata", {}).get("branch_token_usage", {}))
+            branch_stats[branch_id]["metadata"]["breakdown"]["introduction_time"] += branch_eval.get("metadata", {}).get("breakdown", {}).get("introduction_time", 0)
+            branch_stats[branch_id]["metadata"]["breakdown"]["analysis_time"] += branch_eval.get("metadata", {}).get("breakdown", {}).get("analysis_time", 0)
+            branch_stats[branch_id]["metadata"]["breakdown"]["discussion_time"] += branch_eval.get("metadata", {}).get("breakdown", {}).get("discussion_time", 0)
+            branch_stats[branch_id]["metadata"]["breakdown"]["limitations_time"] += branch_eval.get("metadata", {}).get("breakdown", {}).get("limitations_time", 0)
+            add_token_usage(branch_stats[branch_id]["metadata"]["breakdown"]["introduction_tokens"], branch_eval.get("metadata", {}).get("breakdown", {}).get("introduction_tokens", {}))
+            add_token_usage(branch_stats[branch_id]["metadata"]["breakdown"]["analysis_tokens"], branch_eval.get("metadata", {}).get("breakdown", {}).get("analysis_tokens", {}))
+            add_token_usage(branch_stats[branch_id]["metadata"]["breakdown"]["discussion_tokens"], branch_eval.get("metadata", {}).get("breakdown", {}).get("discussion_tokens", {}))
+            add_token_usage(branch_stats[branch_id]["metadata"]["breakdown"]["limitations_tokens"], branch_eval.get("metadata", {}).get("breakdown", {}).get("limitations_tokens", {}))
 
             fluency_ls.append(branch_eval["scores"]["fluency"])
             coherence_ls.append(branch_eval["scores"]["coherence"])
@@ -201,14 +243,8 @@ def compute_average_stats(results, experiment_num=1):
     }
     
     for branch_id, stats in branch_stats.items():
-        stats["scores"]["fluency"] /= len(output_files)
-        stats["scores"]["coherence"] /= len(output_files)
-        stats["scores"]["consistency"] /= len(output_files)
-        stats["scores"]["relevance"] /= len(output_files)
-        stats["metadata"]["branch_execution_time"] /= len(output_files)
-        stats["metadata"]["branch_token_usage"]["prompt_tokens"] /= len(output_files)
-        stats["metadata"]["branch_token_usage"]["completion_tokens"] /= len(output_files)
-        stats["metadata"]["branch_token_usage"]["total_tokens"] /= len(output_files)
+        scale_dict_value(stats["scores"], 1 / len(output_files))
+        scale_dict_value(stats["metadata"], 1 / len(output_files))
 
         tmp_result = {
             "branch_id": branch_id,
@@ -228,9 +264,8 @@ def compute_average_stats(results, experiment_num=1):
             "prompt_discussion": stats.get("prompt_discussion", ""),
             "prompt_discussion_style": stats.get("prompt_discussion_style", "")
         }
-        if EXPERIMENT_NUM == 2:
-            tmp_result["prompt_limitations"] = stats.get("prompt_limitations", "")
-            tmp_result["prompt_limitations_style"] = stats.get("prompt_limitations_style", "")
+        tmp_result["prompt_limitations"] = stats.get("prompt_limitations", "")
+        tmp_result["prompt_limitations_style"] = stats.get("prompt_limitations_style", "")
         result_data["branch_evaluations"].append(tmp_result)
         
     result_data["summary_statistics"] = {
@@ -281,30 +316,36 @@ def run_sync_frameworks(topic:str, output_dir: Path):
     # agentgit_results_files = run_experiments_in_parallel(partial(run_and_eval_agentgit_experiment, topic), nums=20)
     # base = str(output_dir.joinpath('sections', 'eval'))
     # agentgit_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
+    # agentgit_results_files.sort()
+    # agentgit_results_files = agentgit_results_files[-20:]
     # agentgit_eval_data = compute_average_stats(agentgit_results_files)
-    # with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agentgit_evaluation_summary.json'), 'w') as f:
+    # with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'agentgit_evaluation_summary.json'), 'w') as f:
     #     json.dump(agentgit_eval_data, f, indent=4)
         
     print("Running LangGraph Time Travel experiments...")
-    langgraph_results_files = run_experiments_in_parallel(partial(run_and_eval_langgraph_experiments, topic), nums=20)
+    # langgraph_results_files = run_experiments_in_parallel(partial(run_and_eval_langgraph_experiments, topic), nums=20)
     base = str(output_dir.joinpath('timetravel', 'eval'))
     langgraph_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
+    langgraph_results_files.sort()
+    langgraph_results_files = langgraph_results_files[-20:]
     langgraph_eval_data = compute_average_stats(langgraph_results_files)
-    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'langgraph_time_travel_evaluation_summary.json'), 'w') as f:
+    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'langgraph_time_travel_evaluation_summary.json'), 'w') as f:
         json.dump(langgraph_eval_data, f, indent=4)
         
     print("Running Agno experiments...")
     # agno_results_files = run_experiments_in_parallel(partial(run_and_eval_agno_experiments, topic), nums=20)
-    # base = str(output_dir.joinpath('agno', 'eval'))
-    # agno_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
-    # agno_eval_data = compute_average_stats(agno_results_files)
-    # with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agno_evaluation_summary.json'), 'w') as f:
-    #     json.dump(agno_eval_data, f, indent=4)
+    base = str(output_dir.joinpath('agno', 'eval'))
+    agno_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
+    agno_results_files.sort()
+    agno_results_files = agno_results_files[-20:]
+    agno_eval_data = compute_average_stats(agno_results_files)
+    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'agno_evaluation_summary.json'), 'w') as f:
+        json.dump(agno_eval_data, f, indent=4)
         
     return {
-        "agentgit": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agentgit_evaluation_summary.json')),
-        "langgraph (time_travel)": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'langgraph_time_travel_evaluation_summary.json')),
-        "agno": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'agno_evaluation_summary.json'))
+        "agentgit": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'agentgit_evaluation_summary.json')),
+        "langgraph (time_travel)": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'langgraph_time_travel_evaluation_summary.json')),
+        "agno": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'agno_evaluation_summary.json'))
     }
     
 async def run_async_frameworks(topic:str, output_dir: Path):
@@ -312,21 +353,23 @@ async def run_async_frameworks(topic:str, output_dir: Path):
     # autogen_results_files = await asyncio.gather(*[asyncio.create_task(run_and_eval_autogen_experiments(topic)) for _ in range(20)])
     base = str(output_dir.joinpath('autogen', 'eval'))
     autogen_results_files = [base + '/' + f for f in os.listdir(base) if f.endswith('.json')]
+    autogen_results_files.sort()
+    autogen_results_files = autogen_results_files[-20:]
     autogen_eval_data = compute_average_stats(autogen_results_files)
-    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'autogen_evaluation_summary.json'), 'w') as f:
+    with open(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'autogen_evaluation_summary.json'), 'w') as f:
         json.dump(autogen_eval_data, f, indent=4)
     return {
-        "autogen": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUM}", 'autogen_evaluation_summary.json')),
+        "autogen": str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'autogen_evaluation_summary.json')),
     }
 
 if __name__ == "__main__":
     topic = "large language models"
-    EXPERIMENT_NUM = 2
+    EXPERIMENT_NUMER = 2
     output_dir = Path(__file__).parent.parent.joinpath('results', f'{topic.replace(" ", "_").lower()}')
     output_dir.mkdir(parents=True, exist_ok=True)
     SectionBasedSummarizer, TimeTravelSummarizer, run_autogen_experiments, run_agno_experiments = import_experiment_modules()
     sync_framework_files = run_sync_frameworks(topic, output_dir)
-    # async_framework_files = asyncio.run(run_async_frameworks(topic, output_dir))
+    async_framework_files = asyncio.run(run_async_frameworks(topic, output_dir))
     # framework_files = {**sync_framework_files, **async_framework_files}
     
     # framework_files = {
@@ -337,6 +380,15 @@ if __name__ == "__main__":
     # }
     # comparator = FrameworkComparator(framework_files)
     # comparator.compare_all()
+    
+    framework_files = {
+        # 'agent_git': str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'agentgit_evaluation_summary.json')),
+        'langgraph (time_travel)': str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'langgraph_time_travel_evaluation_summary.json')),
+        'autogen': str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'autogen_evaluation_summary.json')),
+        'agno': str(output_dir.joinpath(f"framework_experiments_{EXPERIMENT_NUMER}", 'agno_evaluation_summary.json'))
+    }
+    comparator = FrameworkComparator(framework_files, comparison_name="branching_efficiency_comparison")
+    comparator.compare_branching_efficiency(new_node_name="limitations")
     
     # analyzer = ResultsAnalyzer(str(str(output_dir.joinpath('agentgit_evaluation_summary.json'))))
     # analyzer.create_all_visualizations()

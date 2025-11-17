@@ -41,16 +41,18 @@ class AgentMessage(BaseModel):
     introduction: str  # Final Introduction section
     analysis: str      # Final Analysis section
     discussion: str    # Final Discussion section
+    limitations: str   # Final Limitations section
     final_review: str  # Concatenated final review
     
     prompt_introduction: Dict[str, Any]
     prompt_analysis: Dict[str, Any]
     prompt_discussion: Dict[str, Any]
+    prompt_limitations: Dict[str, Any]
     experiment_result: Dict[str, Any]
 
 def load_prompts(prompt_file: str) -> List[Dict[str, Any]]:
     """Load prompt candidates from a JSON file"""
-    prompt_path = Path(__file__).parent / prompt_file
+    prompt_path = Path(__file__).parent.parent / "prompts" / prompt_file
 
     with open(prompt_path, 'r') as f:
         return json.load(f)
@@ -387,9 +389,73 @@ class GenerateDiscussionAgent(BaseWorkflowAgent):
             source=self.name
         )
         return Response(chat_message=response_message)
+    
+class GenerateLimitationsAgent(BaseWorkflowAgent):
+    """Step 6: Generate Limitations section."""
+    
+    def __init__(self) -> None:
+        super().__init__(name="generate_limitations_agent", description="An agent to generate limitations from abstracts")
+
+    async def on_messages(self, messages: Sequence[BaseChatMessage], cancellation_token: CancellationToken) -> Response:
+        latest_message_content: AgentMessage = messages[-1].content
+        start_time = time.time()
+        prompt_limit = latest_message_content.prompt_limitations
+        print(f"[STEP] Generating Limitations with prompt {prompt_limit['id']}")
+
+        abstracts = latest_message_content.abstracts
+        introduction = latest_message_content.introduction
+        analysis = latest_message_content.analysis
+        discussion = latest_message_content.discussion
+
+        # Prepare abstracts text
+        abstracts_text = "\n\n".join([
+            f"Paper {i+1}: {abs.get('title', 'N/A')}\n"
+            f"Authors: {', '.join(abs.get('authors', []))}\n"
+            f"Abstract: {abs.get('abstract', 'N/A')}"
+            for i, abs in enumerate(abstracts) if 'error' not in abs
+        ])
+        
+        user_prompt = prompt_limit["user"].format(
+            abstracts_text=abstracts_text,
+            introduction=introduction,
+            analysis=analysis,
+            discussion=discussion
+        )
+        system_message = prompt_limit.get("system", "You are a helpful research assistant.")
+
+        messages = [dict(role="human", content=f"System: {system_message}\n\nUser: {user_prompt}")]
+        response = await llm.ainvoke(messages)
+
+        original_token_usage = latest_message_content.experiment_result.get("cumulative_tokens", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+        current_token_usage = track_tokens(response)
+        cum_token_usage = {
+            "prompt_tokens": original_token_usage.get("prompt_tokens", 0) + current_token_usage.get("prompt_tokens", 0),
+            "completion_tokens": original_token_usage.get("completion_tokens", 0) + current_token_usage.get("completion_tokens", 0),
+            "total_tokens": original_token_usage.get("total_tokens", 0) + current_token_usage.get("total_tokens", 0),
+        }
+
+        print(f"  → Prompt: {prompt_limit['id']} (Style: {prompt_limit['style']})")
+        print(f"  → Generated {len(response.content)} chars")
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        latest_message_content.experiment_result.update({
+                "limitations_tokens": current_token_usage,
+                "limitations_time": execution_time,
+                "cumulative_time": latest_message_content.experiment_result.get("cumulative_time", 0) + execution_time,
+                "cumulative_tokens": cum_token_usage
+            })
+        response_message = StructuredMessage[AgentMessage](
+            content=latest_message_content.model_copy(update={
+                "messages": latest_message_content.messages + [{"role": "ai", "content": f"Generated limitations: {response.content}"}],
+                "limitations": response.content
+            }),
+            source=self.name
+        )
+        return Response(chat_message=response_message)
 
 class ConcatenateReviewAgent(BaseWorkflowAgent):
-    """Node 6: Concatenate sections into final review (NO regeneration)."""
+    """Step 7: Concatenate sections into final review (NO regeneration)."""
     def __init__(self) -> None:
         super().__init__(name="concatenate_review_agent", description="An agent to concatenate review sections")
     
@@ -402,6 +468,7 @@ class ConcatenateReviewAgent(BaseWorkflowAgent):
         introduction = latest_message_content.introduction
         analysis = latest_message_content.analysis
         discussion = latest_message_content.discussion
+        limitations = latest_message_content.limitations
 
         # Simple concatenation with section headers and transitions
         final_review = f"""# Literature Review: {topic}
@@ -417,6 +484,10 @@ class ConcatenateReviewAgent(BaseWorkflowAgent):
     ## 3. Critical Discussion
 
     {discussion}
+
+    ## 4. Limitations
+
+    {limitations}
 
     ---
     *This review synthesizes findings from {len(latest_message_content.abstracts)} recent papers.*
@@ -449,6 +520,7 @@ async def run_workflow(initial_message: AgentMessage) -> Dict[str, Any]:
     generate_introduction_agent = GenerateIntroductionAgent()
     generate_analysis_agent = GenerateAnalysisAgent()
     generate_discussion_agent = GenerateDiscussionAgent()
+    generate_limitations_agent = GenerateLimitationsAgent()
     concatenate_review_agent = ConcatenateReviewAgent()
     # Build the graph
     builder = DiGraphBuilder()
@@ -457,18 +529,20 @@ async def run_workflow(initial_message: AgentMessage) -> Dict[str, Any]:
         .add_node(generate_introduction_agent)\
         .add_node(generate_analysis_agent)\
         .add_node(generate_discussion_agent)\
+        .add_node(generate_limitations_agent)\
         .add_node(concatenate_review_agent)
     builder.add_edge(search_paper_agent, extract_abstracts_agent)
     builder.add_edge(extract_abstracts_agent, generate_introduction_agent)
     builder.add_edge(generate_introduction_agent, generate_analysis_agent)
     builder.add_edge(generate_analysis_agent, generate_discussion_agent)
-    builder.add_edge(generate_discussion_agent, concatenate_review_agent)
+    builder.add_edge(generate_discussion_agent, generate_limitations_agent)
+    builder.add_edge(generate_limitations_agent, concatenate_review_agent)
 
     graph = builder.build()
 
     # Create the flow
     flow = GraphFlow([search_paper_agent, extract_abstracts_agent, generate_introduction_agent, 
-                      generate_analysis_agent, generate_discussion_agent, concatenate_review_agent], graph=graph,
+                      generate_analysis_agent, generate_discussion_agent, generate_limitations_agent, concatenate_review_agent], graph=graph,
                      custom_message_types=[StructuredMessage[AgentMessage]])
 
     task = StructuredMessage[AgentMessage](
@@ -490,12 +564,14 @@ async def run_all_experiments(topic: str, run_id: str = None):
     prompt_intro_candidates = load_prompts("prompts_introduction.json")
     prompt_ana_candidates = load_prompts("prompts_analysis.json")
     prompt_disc_candidates = load_prompts("prompts_discussion.json")
+    prompt_limit_candidates = load_prompts("prompts_limitations.json")
     all_results = []
-    for (prompt_intro_idx, prompt_intro), (prompt_ana_idx, prompt_ana), (prompt_disc_idx, prompt_disc) in \
+    for (prompt_intro_idx, prompt_intro), (prompt_ana_idx, prompt_ana), (prompt_disc_idx, prompt_disc), (prompt_limit_idx, prompt_limit) in \
         itertools.product(
             enumerate(prompt_intro_candidates),
             enumerate(prompt_ana_candidates),
-            enumerate(prompt_disc_candidates)
+            enumerate(prompt_disc_candidates),
+            enumerate(prompt_limit_candidates)
         ):
         init_message = AgentMessage(
             messages=[],
@@ -507,26 +583,31 @@ async def run_all_experiments(topic: str, run_id: str = None):
             introduction="",
             analysis="",
             discussion="",
+            limitations="",
             final_review="",
             prompt_introduction=prompt_intro,
             prompt_analysis=prompt_ana,
             prompt_discussion=prompt_disc,
+            prompt_limitations=prompt_limit,
             experiment_result={}
         )
         # init_state_ls.append(init_message)
         state = await run_workflow(init_message)
         state = state.model_dump()
         all_results.append({
-            "branch_id": f"I{prompt_intro_idx}_A{prompt_ana_idx}_D{prompt_disc_idx}",
+            "branch_id": f"I{prompt_intro_idx}_A{prompt_ana_idx}_D{prompt_disc_idx}_L{prompt_limit_idx}",
             "prompt_intro": state["prompt_introduction"]["id"],
             "prompt_intro_style": state["prompt_introduction"]["style"],
             "prompt_analysis": state["prompt_analysis"]["id"],
             "prompt_analysis_style": state["prompt_analysis"]["style"],
             "prompt_discussion": state["prompt_discussion"]["id"],
             "prompt_discussion_style": state["prompt_discussion"]["style"],
+            "prompt_limitations": state["prompt_limitations"]["id"],
+            "prompt_limitations_style": state["prompt_limitations"]["style"],
             "introduction": state.get("introduction", ""),
             "analysis": state.get("analysis", ""),
             "discussion": state.get("discussion", ""),
+            "limitations": state.get("limitations", ""),
             "final_review": state["final_review"],
             "metadata": {
                 "topic": topic,
@@ -538,9 +619,11 @@ async def run_all_experiments(topic: str, run_id: str = None):
                     "introduction_time": state["experiment_result"]["introduction_time"],
                     "analysis_time": state["experiment_result"]["analysis_time"],
                     "discussion_time": state["experiment_result"]["discussion_time"],
+                    "limitations_time": state["experiment_result"]["limitations_time"],
                     "introduction_tokens": state["experiment_result"]["introduction_tokens"],
                     "analysis_tokens": state["experiment_result"]["analysis_tokens"],
                     "discussion_tokens": state["experiment_result"]["discussion_tokens"],
+                    "limitations_tokens": state["experiment_result"]["limitations_tokens"],
                 }
             }
         })

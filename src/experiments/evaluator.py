@@ -2441,7 +2441,132 @@ class FrameworkComparator:
         
         print("  [OK] Created: comparison_report.txt")
     
-
+    def compare_branching_efficiency(self, new_node_name: str):
+        """Compare branching efficiency across frameworks.
+        
+        Analyzes the cost of exploring new branches from a rollback point.
+        Creates separate visualizations for time, tokens, and combined cost.
+        
+        Args:
+            new_node_name: Name of the node to analyze branching from
+        """
+        print(f"\n[BRANCHING] Analyzing branching efficiency for node: {new_node_name}")
+        
+        # Color palette for frameworks
+        colors = plt.cm.Set2(np.linspace(0, 1, len(self.framework_names)))
+        
+        # Create three separate charts
+        self._plot_branching_time(new_node_name, colors)
+        self._plot_branching_tokens(new_node_name, colors) 
+        
+        print("  [OK] Created branching efficiency visualizations")
+    
+    def _plot_branching_time(self, new_node_name: str, colors):
+        """Plot time cost for branching operations."""
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        times = []
+        labels = []
+        colors_used = []
+        
+        for i, name in enumerate(self.framework_names):
+            data = self.frameworks[name]
+            
+            if "langgraph" in name.lower().replace(" ", "").replace("_", ""):
+                # LangGraph: only incremental cost from rollback point
+                time_usage = sum(
+                    branch.get('metadata', {}).get("breakdown", {}).get(f'{new_node_name}_time', 0)
+                    for branch in data.get('branch_evaluations', [])
+                )
+            else:
+                # Other frameworks: full re-execution cost
+                time_usage = sum(
+                    sum(branch.get('metadata', {}).get("breakdown", {}).get(stat, 0) if 'time' in stat else 0
+                    for stat in branch.get('metadata', {}).get("breakdown", {}))
+                    for branch in data.get('branch_evaluations', [])
+                )
+            
+            times.append(time_usage)
+            labels.append(name.replace('_', ' '))
+            colors_used.append(colors[i])
+        
+        bars = ax.bar(labels, times, color=colors_used, alpha=0.8,
+                     edgecolor='black', linewidth=1.5)
+        ax.set_ylabel('Branching Time Cost (seconds)', fontsize=12, fontweight='bold')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + max(times) * 0.02,
+                   f'{height:.1f}s', ha='center', va='bottom', 
+                   fontsize=10, fontweight='bold')
+        
+        if max(times) > 0:
+            ax.set_ylim(0, max(times) * 1.15)
+        
+        if len(labels) > 3:
+            ax.tick_params(axis='x', rotation=45)
+        
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "branching_time.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print("  [OK] Created: branching_time.png")
+    
+    def _plot_branching_tokens(self, new_node_name: str, colors):
+        """Plot token cost for branching operations."""
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        tokens = []
+        labels = []
+        colors_used = []
+        
+        for i, name in enumerate(self.framework_names):
+            data = self.frameworks[name]
+            
+            if "langgraph" in name.lower().replace(" ", "").replace("_", ""):
+                # LangGraph: only incremental tokens from rollback point
+                token_usage = sum(
+                    branch.get('metadata', {}).get("breakdown", {}).get(f'{new_node_name}_tokens', {}).get('total_tokens', 0)
+                    for branch in data.get('branch_evaluations', [])
+                )
+            else:
+                # Other frameworks: full re-execution tokens
+                token_usage = sum(
+                    sum(branch.get('metadata', {}).get("breakdown", {}).get(stat, {}).get('total_tokens', 0) if 'tokens' in stat else 0
+                    for stat in branch.get('metadata', {}).get("breakdown", {}))
+                    for branch in data.get('branch_evaluations', [])
+                )
+            
+            tokens.append(token_usage)
+            labels.append(name.replace('_', ' '))
+            colors_used.append(colors[i])
+        
+        bars = ax.bar(labels, tokens, color=colors_used, alpha=0.8,
+                     edgecolor='black', linewidth=1.5)
+        ax.set_ylabel('Branching Token Cost', fontsize=12, fontweight='bold')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + max(tokens) * 0.02,
+                   f'{int(height):,}', ha='center', va='bottom',
+                   fontsize=10, fontweight='bold')
+        
+        if max(tokens) > 0:
+            ax.set_ylim(0, max(tokens) * 1.15)
+        
+        if len(labels) > 3:
+            ax.tick_params(axis='x', rotation=45)
+        
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "branching_tokens.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print("  [OK] Created: branching_tokens.png")
+         
 if __name__ == "__main__":
     main()
 

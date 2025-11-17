@@ -39,6 +39,7 @@ class AgentState(TypedDict):
     introduction: str  # Final Introduction section
     analysis: str      # Final Analysis section
     discussion: str    # Final Discussion section
+    limitations: str   # Final Limitations section
     final_review: str  # Concatenated final review
     
     prompt_introduction: Dict[str, Any]
@@ -50,7 +51,7 @@ class AgentState(TypedDict):
 # 2. Helper Functions for Configuration
 def load_prompts(prompt_file: str) -> List[Dict[str, Any]]:
     """Load prompt candidates from a JSON file"""
-    prompt_path = Path(__file__).parent / "prompts" / prompt_file
+    prompt_path = Path(__file__).parent.parent / "prompts" / prompt_file
 
     with open(prompt_path, 'r') as f:
         return json.load(f)
@@ -401,6 +402,7 @@ def step_concatenate(step_input: StepInput, session_state: AgentState) -> StepOu
     introduction = session_state.get("introduction", "")
     analysis = session_state.get("analysis", "")
     discussion = session_state.get("discussion", "")
+    limitations = session_state.get("limitations", "")
 
     # Simple concatenation with section headers and transitions
     final_review = f"""# Literature Review: {topic}
@@ -416,6 +418,10 @@ def step_concatenate(step_input: StepInput, session_state: AgentState) -> StepOu
 ## 3. Critical Discussion
 
 {discussion}
+
+## 4. Limitations
+
+{limitations}
 
 ---
 *This review synthesizes findings from {len(session_state.get('abstracts', []))} recent papers.*
@@ -441,7 +447,7 @@ def run_workflow(initial_state: AgentState, workflow_config: Dict[str, Any]) -> 
     session_id = workflow_config.get("session_id", "default_session")
     db = SqliteDb(
             session_table="workflow_session",
-            db_file=str(project_root / "tmp" / "workflow.db"),
+            db_file=str(project_root / "tmp" / "workflow_exp2.db"),
         )
     db.delete_session(session_id)
 
@@ -453,11 +459,12 @@ def run_workflow(initial_state: AgentState, workflow_config: Dict[str, Any]) -> 
             Step(name="Generate Introduction", executor=step_generate_introduction),
             Step(name="Generate Analysis", executor=step_generate_analysis),
             Step(name="Generate Discussion", executor=step_generate_discussion),
+            Step(name="Generate Limitations", executor=step_generate_limitations),
             Step(name="Concatenate Review", executor=step_concatenate),
         ],
         db=SqliteDb(
             session_table="workflow_session",
-            db_file="tmp/workflow.db",
+            db_file="tmp/workflow_exp2.db",
         ),
         session_state=initial_state
     )
@@ -476,12 +483,14 @@ def run_all_experiments(topic: str, run_id: str = None):
     prompt_intro_candidates = load_prompts("prompts_introduction.json")
     prompt_ana_candidates = load_prompts("prompts_analysis.json")
     prompt_disc_candidates = load_prompts("prompts_discussion.json")
+    prompt_limit_candidates = load_prompts("prompts_limitations.json")
     all_results = []
-    for (prompt_intro_idx, prompt_intro), (prompt_ana_idx, prompt_ana), (prompt_disc_idx, prompt_disc) in \
+    for (prompt_intro_idx, prompt_intro), (prompt_ana_idx, prompt_ana), (prompt_disc_idx, prompt_disc), (prompt_limit_idx, prompt_limit) in \
         itertools.product(
             enumerate(prompt_intro_candidates),
             enumerate(prompt_ana_candidates),
-            enumerate(prompt_disc_candidates)
+            enumerate(prompt_disc_candidates),
+            enumerate(prompt_limit_candidates)
         ):
         init_state = AgentState(
             messages=[],
@@ -497,20 +506,24 @@ def run_all_experiments(topic: str, run_id: str = None):
             prompt_introduction=prompt_intro,
             prompt_analysis=prompt_ana,
             prompt_discussion=prompt_disc,
+            prompt_limitations=prompt_limit,
             experiment_result={}
         )
-        state = run_workflow(init_state, {"session_id": f"I{prompt_intro_idx}_A{prompt_ana_idx}_D{prompt_disc_idx}"})
+        state = run_workflow(init_state, {"session_id": f"I{prompt_intro_idx}_A{prompt_ana_idx}_D{prompt_disc_idx}_L{prompt_limit_idx}"})
         all_results.append({
-            "branch_id": f"I{prompt_intro_idx}_A{prompt_ana_idx}_D{prompt_disc_idx}",
+            "branch_id": f"I{prompt_intro_idx}_A{prompt_ana_idx}_D{prompt_disc_idx}_L{prompt_limit_idx}",
             "prompt_intro": state["prompt_introduction"]["id"],
             "prompt_intro_style": state["prompt_introduction"]["style"],
             "prompt_analysis": state["prompt_analysis"]["id"],
             "prompt_analysis_style": state["prompt_analysis"]["style"],
             "prompt_discussion": state["prompt_discussion"]["id"],
             "prompt_discussion_style": state["prompt_discussion"]["style"],
+            "prompt_limitations": state["prompt_limitations"]["id"],
+            "prompt_limitations_style": state["prompt_limitations"]["style"],
             "introduction": state.get("introduction", ""),
             "analysis": state.get("analysis", ""),
             "discussion": state.get("discussion", ""),
+            "limitations": state.get("limitations", ""),
             "final_review": state["final_review"],
             "metadata": {
                 "topic": topic,
@@ -522,9 +535,11 @@ def run_all_experiments(topic: str, run_id: str = None):
                     "introduction_time": state["experiment_result"]["introduction_time"],
                     "analysis_time": state["experiment_result"]["analysis_time"],
                     "discussion_time": state["experiment_result"]["discussion_time"],
+                    "limitations_time": state["experiment_result"]["limitations_time"],
                     "introduction_tokens": state["experiment_result"]["introduction_tokens"],
                     "analysis_tokens": state["experiment_result"]["analysis_tokens"],
                     "discussion_tokens": state["experiment_result"]["discussion_tokens"],
+                    "limitations_tokens": state["experiment_result"]["limitations_tokens"],
                 }
             }
         })
@@ -546,7 +561,7 @@ def run_all_experiments(topic: str, run_id: str = None):
         token_usage_overall["completion_tokens"] += branch_tokens.get("completion_tokens", 0)
         token_usage_overall["total_tokens"] += branch_tokens.get("total_tokens", 0)
         
-    all_results.sort(key=lambda x: (x["prompt_intro"], x["prompt_analysis"], x["prompt_discussion"]))
+    all_results.sort(key=lambda x: (x["prompt_intro"], x["prompt_analysis"], x["prompt_discussion"], x["prompt_limitations"]))
     
     print("\n" + "="*80)
     print(f"WORKFLOW COMPLETE - Generated {len(all_results)} literature reviews")
@@ -599,7 +614,7 @@ if __name__ == "__main__":
 
     for i, result in enumerate(all_results[:5], 1):
         print(f"\n[Branch {i}] {result['branch_id']}")
-        print(f"  Styles: {result['prompt_intro_style']} + {result['prompt_analysis_style']} + {result['prompt_discussion_style']}")
+        print(f"  Styles: {result['prompt_intro_style']} + {result['prompt_analysis_style']} + {result['prompt_discussion_style']} + {result['prompt_limitations_style']}")
         print(f"  Papers: {result['metadata']['num_papers']}")
         print(f"  Total Time: {result['metadata']['branch_execution_time']:.2f}s")
         print(f"  Total Tokens: {result['metadata']['branch_token_usage']['total_tokens']:,}")
