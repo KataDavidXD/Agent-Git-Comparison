@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 print(sys.path)
 
-from agents.evaluator import FrameworkComparator
+from experiments.evaluator import FrameworkComparator
 
 def get_latest_eval_file(topic, framework, results_dir):
     """

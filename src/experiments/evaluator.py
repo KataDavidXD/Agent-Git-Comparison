@@ -2478,6 +2478,8 @@ class FrameworkComparator:
                     branch.get('metadata', {}).get("breakdown", {}).get(f'{new_node_name}_time', 0)
                     for branch in data.get('branch_evaluations', [])
                 )
+            elif "agentgit" in name.lower().replace(" ", "").replace("_", ""):
+                time_usage = data.get('timing', {}).get('total_project_time', 0)
             else:
                 # Other frameworks: full re-execution cost
                 time_usage = sum(
@@ -2527,6 +2529,11 @@ class FrameworkComparator:
             
             if "langgraph" in name.lower().replace(" ", "").replace("_", ""):
                 # LangGraph: only incremental tokens from rollback point
+                token_usage = sum(
+                    branch.get('metadata', {}).get("breakdown", {}).get(f'{new_node_name}_tokens', {}).get('total_tokens', 0)
+                    for branch in data.get('branch_evaluations', [])
+                )
+            elif "agentgit" in name.lower().replace(" ", "").replace("_", ""):
                 token_usage = sum(
                     branch.get('metadata', {}).get("breakdown", {}).get(f'{new_node_name}_tokens', {}).get('total_tokens', 0)
                     for branch in data.get('branch_evaluations', [])
